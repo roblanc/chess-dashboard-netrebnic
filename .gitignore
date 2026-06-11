@@ -1,0 +1,5 @@
+stats.json
+dashboard.html
+__pycache__/
+*.pyc
+.DS_Store

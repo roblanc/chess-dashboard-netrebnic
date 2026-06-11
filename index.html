@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>netrebnic — Chess Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #262421;
+      --bg-deep: #1e1c19;
+      --panel: rgba(49, 46, 43, 0.92);
+      --panel-hover: rgba(58, 55, 51, 0.96);
+      --text: #f0f0f0;
+      --muted: #9b9b9b;
+      --accent: #81b64c;
+      --accent-dim: rgba(129, 182, 76, 0.18);
+      --accent-glow: rgba(129, 182, 76, 0.35);
+      --warn: #fa412d;
+      --info: #6bc9f7;
+      --gold: #f7c631;
+      --border: rgba(255, 255, 255, 0.08);
+      --mono: "JetBrains Mono", ui-monospace, monospace;
+      --sans: "DM Sans", system-ui, sans-serif;
+      --radius: 14px;
+      --shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      background-color: var(--bg-deep);
+      background-image: linear-gradient(180deg, rgba(129, 182, 76, 0.03) 0%, transparent 28%);
+      color: var(--text);
+      line-height: 1.55;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      backdrop-filter: blur(14px);
+      background: rgba(30, 28, 25, 0.88);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .nav-inner::-webkit-scrollbar { display: none; }
+    .nav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 999px;
+      white-space: nowrap;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav a:hover, .nav a.active {
+      color: var(--text);
+      background: var(--accent-dim);
+    }
+    .nav-logo {
+      font-weight: 700;
+      color: var(--accent) !important;
+      margin-right: 8px;
+    }
+
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 20px 80px; }
+
+    .hero-banner {
+      position: relative;
+      overflow: hidden;
+      border-radius: 20px;
+      padding: 32px 28px;
+      margin-bottom: 24px;
+      background: linear-gradient(135deg, #3d4a2f 0%, var(--bg) 55%, #2a3d4a 100%);
+      border: 1px solid var(--accent-glow);
+      box-shadow: var(--shadow);
+    }
+    .hero-banner::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 85% 20%, rgba(129, 182, 76, 0.25), transparent 45%);
+      pointer-events: none;
+    }
+    .hero-banner h1 {
+      margin: 0 0 6px;
+      font-size: clamp(1.6rem, 4vw, 2.4rem);
+      letter-spacing: -0.03em;
+      position: relative;
+    }
+    .hero-banner .sub { color: var(--muted); margin: 0; position: relative; font-size: 0.95rem; }
+    .hero-badge {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      position: relative;
+    }
+
+    .grid { display: grid; gap: 16px; }
+    .bento { display: grid; gap: 16px; grid-template-columns: repeat(12, 1fr); }
+    .span-3 { grid-column: span 3; }
+    .span-4 { grid-column: span 4; }
+    .span-6 { grid-column: span 6; }
+    .span-8 { grid-column: span 8; }
+    .span-12 { grid-column: span 12; }
+
+    @media (max-width: 1024px) {
+      .span-3, .span-4, .span-6, .span-8 { grid-column: span 6; }
+    }
+    @media (max-width: 640px) {
+      .span-3, .span-4, .span-6, .span-8, .span-12 { grid-column: span 12; }
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      box-shadow: var(--shadow);
+      transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+    .card:hover {
+      transform: translateY(-2px);
+      background: var(--panel-hover);
+      border-color: rgba(129, 182, 76, 0.2);
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-weight: 600;
+    }
+    .stat-value {
+      font-size: clamp(1.5rem, 3vw, 2rem);
+      font-weight: 700;
+      margin-top: 6px;
+      font-variant-numeric: tabular-nums;
+    }
+    .stat-value.mono { font-family: var(--mono); }
+    .stat-note { color: var(--muted); font-size: 0.88rem; margin-top: 4px; }
+
+    .section-title {
+      font-size: 1.2rem;
+      margin: 36px 0 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 72px;
+    }
+    .section-title:first-of-type { margin-top: 8px; }
+
+    .highlight {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      background: linear-gradient(120deg, var(--accent-dim), rgba(107, 201, 247, 0.08));
+      border-color: var(--accent-glow);
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 500;
+    }
+    .pill.good { background: var(--accent-dim); color: var(--accent); }
+    .pill.bad { background: rgba(250, 65, 45, 0.15); color: var(--warn); }
+
+    .insight {
+      border-left: 3px solid var(--info);
+      padding: 12px 0 12px 16px;
+      margin-bottom: 12px;
+    }
+    .insight:last-child { margin-bottom: 0; }
+    .insight.weakness { border-color: var(--warn); }
+    .insight.strength { border-color: var(--accent); }
+    .insight.improvement { border-color: var(--gold); }
+    .insight h3 { margin: 0 0 6px; font-size: 0.98rem; }
+    .insight p { margin: 0; color: #c8c8c8; font-size: 0.92rem; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); }
+    th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    td.mono { font-family: var(--mono); font-size: 0.85rem; }
+
+    .chart-box { height: 260px; position: relative; }
+    .chart-box.tall { height: 320px; }
+    .chart-box.radar { height: 340px; }
+
+    .trait-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+    .trait-row span:first-child { width: 110px; color: var(--muted); font-size: 0.82rem; }
+    .trait-row span:last-child { width: 42px; text-align: right; font-family: var(--mono); font-size: 0.8rem; }
+    .trait-bar { flex: 1; height: 8px; background: rgba(255, 255, 255, 0.06); border-radius: 999px; overflow: hidden; }
+    .trait-bar > i {
+      display: block;
+      height: 100%;
+      background: linear-gradient(90deg, var(--info), var(--accent));
+      border-radius: 999px;
+      transition: width 0.8s ease;
+    }
+
+    .legend-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .legend-row:last-child { border-bottom: 0; }
+    .legend-name { font-weight: 600; font-size: 0.95rem; }
+    .legend-pct { color: var(--accent); font-weight: 700; font-family: var(--mono); }
+
+    .legend-bar-row { margin: 8px 0; }
+    .legend-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 4px;
+    }
+    .legend-bar-label span:last-child { font-family: var(--mono); color: var(--accent); }
+    .legend-bar-track {
+      height: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .legend-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), #a8d08d);
+      border-radius: 999px;
+      transition: width 0.9s ease;
+    }
+    .legend-bar-fill.top { background: linear-gradient(90deg, var(--gold), var(--accent)); }
+
+    .heatmap-wrap { overflow-x: auto; padding-bottom: 4px; }
+    .heatmap {
+      display: grid;
+      grid-template-columns: 52px repeat(24, minmax(22px, 1fr));
+      gap: 3px;
+      min-width: 640px;
+    }
+    .heatmap .corner { font-size: 0.65rem; color: var(--muted); }
+    .heatmap .h-label {
+      font-size: 0.62rem;
+      color: var(--muted);
+      text-align: center;
+      font-family: var(--mono);
+    }
+    .heatmap .d-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      padding-right: 6px;
+    }
+    .heatmap .cell {
+      aspect-ratio: 1;
+      border-radius: 4px;
+      min-height: 20px;
+      position: relative;
+      cursor: default;
+      transition: transform 0.15s;
+    }
+    .heatmap .cell:hover { transform: scale(1.15); z-index: 2; }
+    .heatmap .cell.empty { background: rgba(255, 255, 255, 0.03); }
+    .heatmap-legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .heatmap-legend .grad {
+      flex: 1;
+      max-width: 160px;
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--warn), #888, var(--accent));
+    }
+
+    .donut-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      font-family: var(--mono);
+    }
+    .donut-center .big { font-size: 1.4rem; font-weight: 700; color: var(--accent); }
+    .donut-center .small { font-size: 0.72rem; color: var(--muted); }
+
+    footer { margin-top: 48px; color: var(--muted); font-size: 0.82rem; }
+  </style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner" id="nav"></div>
+  </nav>
+
+  <div class="wrap">
+    <header class="hero-banner" id="hero-banner">
+      <h1 id="title">Chess Dashboard</h1>
+      <p class="sub" id="subtitle"></p>
+      <span class="hero-badge" id="hero-badge">Chess.com · netrebnic</span>
+    </header>
+
+    <div class="bento" id="hero"></div>
+
+    <div class="bento" style="margin-top:16px">
+      <div class="card highlight span-6" id="peak-hour"></div>
+      <div class="card highlight span-6" id="best-format"></div>
+    </div>
+
+    <h2 class="section-title" id="sec-style">Stil & legende</h2>
+    <div class="bento">
+      <div class="card span-4" id="style-card"></div>
+      <div class="card span-4">
+        <div class="stat-label">Radar stil — tu vs legende</div>
+        <div class="chart-box radar"><canvas id="radarChart"></canvas></div>
+      </div>
+      <div class="card span-4" id="legend-card"></div>
+    </div>
+
+    <div class="card" style="margin-top:16px" id="legend-bars-card">
+      <div class="stat-label">Potrivire cu toți cei 10 mari jucători</div>
+      <div id="legend-bars" style="margin-top:12px"></div>
+    </div>
+
+    <h2 class="section-title" id="sec-insights">Ce să îmbunătățești</h2>
+    <div class="card" id="insights"></div>
+
+    <h2 class="section-title" id="sec-heatmap">Când joci cel mai bine</h2>
+    <div class="card">
+      <div class="stat-label">Heatmap oră × zi (București)</div>
+      <p class="stat-note" style="margin:6px 0 14px" id="heatmap-note"></p>
+      <div class="heatmap-wrap"><div class="heatmap" id="heatmap"></div></div>
+      <div class="heatmap-legend">
+        <span>Slab</span>
+        <div class="grad"></div>
+        <span>Puternic</span>
+        <span style="margin-left:auto">min. 8 partide/celulă pentru culori de încredere</span>
+      </div>
+    </div>
+
+    <h2 class="section-title" id="sec-tc">Time controls</h2>
+    <div class="bento">
+      <div class="card span-8">
+        <div class="stat-label">Scor pe format (3 min, 5 min, 10 min, …)</div>
+        <div class="chart-box tall"><canvas id="tcChart"></canvas></div>
+      </div>
+      <div class="card span-4">
+        <div class="stat-label">Detalii pe pool</div>
+        <table id="timeControls"></table>
+      </div>
+    </div>
+
+    <h2 class="section-title" id="sec-charts">Grafice performanță</h2>
+    <div class="bento">
+      <div class="card span-6">
+        <div class="stat-label">Evoluție rating</div>
+        <div class="chart-box tall"><canvas id="ratingChart"></canvas></div>
+      </div>
+      <div class="card span-6">
+        <div class="stat-label">Scor pe oră — AM/PM</div>
+        <div class="chart-box tall"><canvas id="hourChart"></canvas></div>
+      </div>
+      <div class="card span-4">
+        <div class="stat-label">Categorie (bullet / blitz / rapid)</div>
+        <div class="chart-box"><canvas id="timeChart"></canvas></div>
+      </div>
+      <div class="card span-4" style="position:relative">
+        <div class="stat-label">Culoare</div>
+        <div class="chart-box"><canvas id="colorChart"></canvas></div>
+        <div class="donut-center" id="color-center"></div>
+      </div>
+      <div class="card span-4">
+        <div class="stat-label">Zi din săptămână</div>
+        <div class="chart-box"><canvas id="weekdayChart"></canvas></div>
+      </div>
+      <div class="card span-12">
+        <div class="stat-label">Familie ECO</div>
+        <div class="chart-box"><canvas id="ecoChart"></canvas></div>
+      </div>
+    </div>
+
+    <h2 class="section-title" id="sec-openings">Deschideri</h2>
+    <div class="bento">
+      <div class="card span-6">
+        <div class="stat-label">Cele mai slabe (15+ partide)</div>
+        <table id="weakOpenings"></table>
+      </div>
+      <div class="card span-6">
+        <div class="stat-label">Cele mai puternice (15+ partide)</div>
+        <table id="strongOpenings"></table>
+      </div>
+    </div>
+
+    <footer id="footer"></footer>
+  </div>
+
+  <script id="stats-data" type="application/json">__STATS_JSON__</script>
+  <script>
+    const stats = JSON.parse(document.getElementById('stats-data').textContent);
+    const fmtPct = (v) => (v == null ? '—' : `${v}%`);
+
+    const sections = [
+      ['sec-style', 'Stil'],
+      ['sec-insights', 'Insights'],
+      ['sec-heatmap', 'Heatmap'],
+      ['sec-tc', 'Formate'],
+      ['sec-charts', 'Grafice'],
+      ['sec-openings', 'Deschideri'],
+    ];
+    document.getElementById('nav').innerHTML =
+      `<a href="#" class="nav-logo">♞</a>` +
+      sections.map(([id, label]) => `<a href="#${id}">${label}</a>`).join('');
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            document.querySelectorAll('.nav a:not(.nav-logo)').forEach((a) => {
+              a.classList.toggle('active', a.getAttribute('href') === `#${e.target.id}`);
+            });
+          }
+        });
+      },
+      { rootMargin: '-40% 0px -50% 0px' }
+    );
+    sections.forEach(([id]) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+
+    function countUp(el, end, suffix = '', decimals = 0, duration = 900) {
+      const start = 0;
+      const t0 = performance.now();
+      const step = (t) => {
+        const p = Math.min(1, (t - t0) / duration);
+        const ease = 1 - Math.pow(1 - p, 3);
+        const val = start + (end - start) * ease;
+        el.textContent = (decimals ? val.toFixed(decimals) : Math.round(val).toLocaleString()) + suffix;
+        if (p < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+
+    document.getElementById('title').textContent = `${stats.meta.username}`;
+    document.getElementById('subtitle').textContent =
+      `${stats.meta.total_games.toLocaleString()} partide evaluate · ${stats.meta.timezone} · ${new Date(stats.meta.generated_at).toLocaleString('ro-RO')}`;
+    document.getElementById('hero-badge').textContent =
+      `Scor global ${fmtPct(stats.overall.score_pct)} · peak ${stats.ratings.peak ?? '—'}`;
+
+    const btc = stats.best_time_control || {};
+    const heroItems = [
+      { label: 'Scor global', value: stats.overall.score_pct, suffix: '%', note: `${stats.overall.wins}V ${stats.overall.losses}Î ${stats.overall.draws}R`, decimals: 1 },
+      { label: 'Cel mai bun format', text: btc.label ?? '—', note: btc.label ? `${btc.score_pct}% · ${btc.games?.toLocaleString()} partide` : '—' },
+      { label: 'Cea mai bună oră', text: stats.by_hour.best?.label ?? '—', note: stats.by_hour.best ? `${stats.by_hour.best.score_pct}% (${stats.by_hour.best.games} jocuri)` : 'Date insuficiente' },
+      { label: 'Rating maxim', text: stats.ratings.peak ?? '—', note: `Medie ${stats.ratings.average ?? '—'}` },
+    ];
+
+    document.getElementById('hero').innerHTML = heroItems.map((item, i) => {
+      const id = `hero-val-${i}`;
+      const valHtml = item.value != null
+        ? `<div class="stat-value mono" id="${id}">0${item.suffix || ''}</div>`
+        : `<div class="stat-value">${item.text}</div>`;
+      return `<div class="card span-3">
+        <div class="stat-label">${item.label}</div>
+        ${valHtml}
+        <div class="stat-note">${item.note}</div>
+      </div>`;
+    }).join('');
+
+    heroItems.forEach((item, i) => {
+      if (item.value != null) {
+        const el = document.getElementById(`hero-val-${i}`);
+        countUp(el, item.value, item.suffix || '', item.decimals || 0);
+      }
+    });
+
+    const best = stats.by_hour.best;
+    const worst = stats.by_hour.worst;
+    document.getElementById('peak-hour').innerHTML = best ? `
+      <div>
+        <div class="stat-label">Fereastra de vârf</div>
+        <div class="stat-value">${best.label}</div>
+        <div class="stat-note">${best.score_pct}% în ${best.games} partide (ora București).</div>
+      </div>
+      <span class="pill bad">Evită ${worst ? worst.label : '—'} (${worst ? worst.score_pct + '%' : '—'})</span>` : '<div class="stat-note">Nu există încă destule date pe ore.</div>';
+
+    document.getElementById('best-format').innerHTML = btc.label ? `
+      <div>
+        <div class="stat-label">Cel mai bun time control</div>
+        <div class="stat-value">${btc.label}</div>
+        <div class="stat-note">${btc.summary_ro || ''}</div>
+        ${btc.small_sample_highlight ? `<div class="stat-note" style="margin-top:8px">${btc.small_sample_highlight.note_ro}</div>` : ''}
+      </div>
+      <span class="pill good">${btc.confidence === 'high' ? 'încredere mare' : btc.confidence === 'medium' ? 'încredere medie' : 'eșantion mic'}</span>` : '';
+
+    const style = stats.playing_style || {};
+    const traitLabels = (stats.legend_archetypes?.dimension_labels_ro) || {
+      tactical: 'Tactic', positional: 'Pozițional', aggressive: 'Agresiv', solid: 'Solid',
+      blitz_speed: 'Viteză blitz', low_draw: 'Decisiv', flank_openings: 'Flancuri', counterattack: 'Contrajoc',
+    };
+    const traits = style.traits || {};
+    document.getElementById('style-card').innerHTML = `
+      <div class="stat-label">Profil de stil</div>
+      <div class="stat-value" style="font-size:1.15rem;margin:8px 0 10px">${style.archetype_ro || '—'}</div>
+      <p style="margin:0 0 12px;color:#c8c8c8;font-size:0.9rem">${style.narrative_ro || ''}</p>
+      ${Object.entries(traits).map(([k, v]) => `
+        <div class="trait-row">
+          <span>${traitLabels[k] || k}</span>
+          <div class="trait-bar"><i style="width:${v}%"></i></div>
+          <span>${v}%</span>
+        </div>`).join('')}
+      <div class="stat-note" style="margin-top:10px">
+        ${style.stats ? `${style.stats.unique_openings} deschideri · ${style.stats.blitz_share_pct}% blitz/bullet · remize ${style.stats.draw_rate_pct}%` : ''}
+      </div>`;
+
+    const legends = stats.legend_matches || [];
+    document.getElementById('legend-card').innerHTML = `
+      <div class="stat-label">Top 5 potriviri</div>
+      <p style="margin:6px 0 12px;color:#9b9b9b;font-size:0.85rem">
+        Heuristică din deschideri, lungime, remize, agresivitate și viteză.
+      </p>
+      ${legends.slice(0, 5).map((l, i) => `
+        <div class="legend-row">
+          <div>
+            <div class="legend-name">${i + 1}. ${l.name}</div>
+            <div class="stat-note">${l.blurb_ro}</div>
+          </div>
+          <div class="legend-pct">${l.similarity_pct}%</div>
+        </div>`).join('')}`;
+
+    document.getElementById('legend-bars').innerHTML = legends.map((l, i) => `
+      <div class="legend-bar-row">
+        <div class="legend-bar-label">
+          <span>${l.name}</span>
+          <span>${l.similarity_pct}%</span>
+        </div>
+        <div class="legend-bar-track">
+          <div class="legend-bar-fill ${i === 0 ? 'top' : ''}" style="width:0" data-w="${l.similarity_pct}"></div>
+        </div>
+      </div>`).join('');
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.legend-bar-fill').forEach((bar) => {
+        bar.style.width = `${bar.dataset.w}%`;
+      });
+    });
+
+    document.getElementById('insights').innerHTML = stats.insights.map((item) => `
+      <div class="insight ${item.type}">
+        <h3>${item.title}</h3>
+        <p>${item.detail}</p>
+      </div>`).join('');
+
+    const hm = stats.by_hour_weekday || { cells: [], weekdays: [], hours: [] };
+    const cellMap = Object.fromEntries(hm.cells.map((c) => [`${c.weekday}-${c.hour}`, c]));
+    const scores = hm.cells.filter((c) => c.reliable && c.score_pct != null).map((c) => c.score_pct);
+    const minSc = scores.length ? Math.min(...scores) : 40;
+    const maxSc = scores.length ? Math.max(...scores) : 60;
+
+    function heatColor(pct, reliable) {
+      if (pct == null || !reliable) return 'rgba(255,255,255,0.04)';
+      const t = maxSc === minSc ? 0.5 : (pct - minSc) / (maxSc - minSc);
+      if (t < 0.5) {
+        const u = t * 2;
+        return `rgb(${Math.round(250 - u * 80)}, ${Math.round(65 + u * 40)}, ${Math.round(45 + u * 20)})`;
+      }
+      const u = (t - 0.5) * 2;
+      return `rgb(${Math.round(100 + u * 29)}, ${Math.round(140 + u * 42)}, ${Math.round(76)})`;
+    }
+
+    const hourLabelsShort = Array.from({ length: 24 }, (_, h) => (h % 6 === 0 ? (h % 12 || 12) + (h < 12 ? 'a' : 'p') : ''));
+    let heatHtml = '<div class="corner"></div>';
+    hourLabelsShort.forEach((l) => { heatHtml += `<div class="h-label">${l}</div>`; });
+    (hm.weekdays || []).forEach((day) => {
+      heatHtml += `<div class="d-label">${day.slice(0, 3)}</div>`;
+      for (let h = 0; h < 24; h++) {
+        const c = cellMap[`${day}-${h}`];
+        if (!c) {
+          heatHtml += '<div class="cell empty"></div>';
+        } else {
+          const title = `${day} ${c.hour_label}: ${c.score_pct ?? '—'}% (${c.games} partide)`;
+          heatHtml += `<div class="cell" style="background:${heatColor(c.score_pct, c.reliable)}" title="${title}"></div>`;
+        }
+      }
+    });
+    document.getElementById('heatmap').innerHTML = heatHtml;
+
+    const hmNote = hm.best
+      ? `Cel mai bun slot: <strong>${hm.best.weekday} ${hm.best.hour_label}</strong> — ${hm.best.score_pct}% (${hm.best.games} partide).` +
+        (hm.worst ? ` Evită <strong>${hm.worst.weekday} ${hm.worst.hour_label}</strong> (${hm.worst.score_pct}%).` : '')
+      : 'Nu există încă suficiente partide pe combinații oră×zi.';
+    document.getElementById('heatmap-note').innerHTML = hmNote;
+
+    const table = (rows) => `
+      <thead><tr><th>Deschidere</th><th>Partide</th><th>Scor</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr><td>${r.key}</td><td class="mono">${r.games}</td><td class="mono">${fmtPct(r.score_pct)}</td></tr>`).join('')}</tbody>`;
+    document.getElementById('weakOpenings').innerHTML = table(stats.weak_openings.slice(0, 8));
+    document.getElementById('strongOpenings').innerHTML = table(stats.strong_openings.slice(0, 8));
+
+    Chart.defaults.color = '#9b9b9b';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+    Chart.defaults.font.family = '"DM Sans", system-ui, sans-serif';
+
+    const arch = stats.legend_archetypes || {};
+    const dims = arch.dimensions || Object.keys(traits);
+    const dimLabels = dims.map((d) => traitLabels[d] || d);
+    const userRadar = dims.map((d) => traits[d] ?? 0);
+    const compareNames = arch.radar_compare || ['Viswanathan Anand', 'Magnus Carlsen', 'Mikhail Tal'];
+    const palette = ['#81b64c', '#6bc9f7', '#f7c631', '#fa412d'];
+    const radarDatasets = [
+      { label: stats.meta.username, data: userRadar, borderColor: palette[0], backgroundColor: 'rgba(129,182,76,0.15)', borderWidth: 2 },
+      ...compareNames.map((name, i) => ({
+        label: name.split(' ').pop(),
+        data: dims.map((d) => (arch.players?.[name]?.[d] ?? 0)),
+        borderColor: palette[i + 1],
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        borderDash: i === 2 ? [4, 4] : [],
+      })),
+    ];
+
+    new Chart(document.getElementById('radarChart'), {
+      type: 'radar',
+      data: { labels: dimLabels, datasets: radarDatasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          r: {
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 25, backdropColor: 'transparent' },
+            grid: { color: 'rgba(255,255,255,0.08)' },
+            angleLines: { color: 'rgba(255,255,255,0.06)' },
+            pointLabels: { font: { size: 10 } },
+          },
+        },
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 14 } } },
+      },
+    });
+
+    new Chart(document.getElementById('ratingChart'), {
+      type: 'line',
+      data: {
+        labels: stats.rating_trend.map((r) => r.month),
+        datasets: [{
+          label: 'Rating mediu',
+          data: stats.rating_trend.map((r) => r.avg_rating),
+          borderColor: '#6bc9f7',
+          backgroundColor: 'rgba(107,201,247,0.12)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 2,
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } } },
+    });
+
+    const hourLabel = (h) => {
+      const suffix = h < 12 ? 'AM' : 'PM';
+      return `${h % 12 || 12}:00 ${suffix}`;
+    };
+    const hourLabels = Array.from({ length: 24 }, (_, i) => hourLabel(i));
+    const hourMap = Object.fromEntries(stats.by_hour.all.map((h) => [h.hour, h.score_pct]));
+    const hourGames = Object.fromEntries(stats.by_hour.all.map((h) => [h.hour, h.games]));
+
+    function barColor(score, hour) {
+      if (score == null) return 'rgba(255,255,255,0.06)';
+      if (stats.by_hour.best && hour === stats.by_hour.best.hour) return '#81b64c';
+      if (stats.by_hour.worst && hour === stats.by_hour.worst.hour) return '#fa412d';
+      if (score >= 55) return '#81b64c';
+      if (score <= 48) return '#fa412d';
+      return '#6bc9f7';
+    }
+
+    new Chart(document.getElementById('hourChart'), {
+      type: 'bar',
+      data: {
+        labels: hourLabels,
+        datasets: [{
+          label: 'Scor %',
+          data: hourLabels.map((_, i) => hourMap[i] ?? null),
+          backgroundColor: hourLabels.map((_, i) => barColor(hourMap[i], i)),
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              afterLabel: (ctx) => {
+                const g = hourGames[ctx.dataIndex];
+                return g ? `${g} partide` : '';
+              },
+            },
+          },
+        },
+        scales: { y: { min: 40, max: 70 } },
+      },
+    });
+
+    const doughnut = (id, rows, centerEl) => {
+      const chart = new Chart(document.getElementById(id), {
+        type: 'doughnut',
+        data: {
+          labels: rows.map((r) => r.key),
+          datasets: [{
+            data: rows.map((r) => r.games),
+            backgroundColor: ['#81b64c', '#6bc9f7', '#f7c631', '#fa412d', '#b388ff', '#888'],
+            borderWidth: 0,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '62%',
+          plugins: { legend: { position: 'bottom', labels: { boxWidth: 10 } } },
+        },
+      });
+      if (centerEl && rows[0]) {
+        centerEl.innerHTML = `<span class="big">${fmtPct(rows[0].score_pct)}</span><span class="small">${rows[0].key}</span>`;
+      }
+      return chart;
+    };
+
+    const tcRows = (stats.by_time_control || []).filter((r) => r.games >= 5);
+    document.getElementById('timeControls').innerHTML = `
+      <thead><tr><th>Format</th><th>#</th><th>V-Î-R</th><th>Scor</th></tr></thead>
+      <tbody>${tcRows.map((r) => `
+        <tr>
+          <td>${r.label}</td>
+          <td class="mono">${r.games.toLocaleString()}</td>
+          <td class="mono">${r.wins}-${r.losses}-${r.draws}</td>
+          <td class="mono">${fmtPct(r.score_pct)}</td>
+        </tr>`).join('')}</tbody>`;
+
+    const tcBest = [...tcRows].filter((x) => x.games >= 20).sort((a, b) => (b.score_pct || 0) - (a.score_pct || 0))[0];
+    const tcWorst = [...tcRows].filter((x) => x.games >= 20).sort((a, b) => (a.score_pct || 0) - (b.score_pct || 0))[0];
+
+    new Chart(document.getElementById('tcChart'), {
+      type: 'bar',
+      data: {
+        labels: tcRows.map((r) => r.label),
+        datasets: [{
+          label: 'Scor %',
+          data: tcRows.map((r) => r.score_pct),
+          backgroundColor: tcRows.map((r) => {
+            if (tcBest && r.key === tcBest.key) return '#81b64c';
+            if (tcWorst && r.key === tcWorst.key) return '#fa412d';
+            return '#6bc9f7';
+          }),
+          borderRadius: 6,
+        }, {
+          label: 'Partide',
+          data: tcRows.map((r) => r.games),
+          type: 'line',
+          borderColor: '#888',
+          backgroundColor: 'transparent',
+          yAxisID: 'y1',
+          tension: 0.25,
+          pointRadius: 3,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          y: { min: 35, max: 75, title: { display: true, text: 'Scor %' } },
+          y1: { position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'Partide' } },
+        },
+      },
+    });
+
+    doughnut('timeChart', stats.by_time_class);
+    const colorRows = Object.entries(stats.by_color).map(([key, v]) => ({ key, games: v.games, score_pct: v.score_pct }));
+    colorRows.sort((a, b) => b.games - a.games);
+    doughnut('colorChart', colorRows, document.getElementById('color-center'));
+
+    const wdColors = stats.by_weekday.map((r) => {
+      const s = r.score_pct;
+      if (s == null) return '#888';
+      if (s >= 55) return '#81b64c';
+      if (s <= 48) return '#fa412d';
+      return '#6bc9f7';
+    });
+
+    new Chart(document.getElementById('weekdayChart'), {
+      type: 'bar',
+      data: {
+        labels: stats.by_weekday.map((r) => r.key.slice(0, 3)),
+        datasets: [{ label: 'Scor %', data: stats.by_weekday.map((r) => r.score_pct), backgroundColor: wdColors, borderRadius: 6 }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+    });
+
+    new Chart(document.getElementById('ecoChart'), {
+      type: 'bar',
+      data: {
+        labels: stats.by_eco_family.map((r) => r.key),
+        datasets: [{
+          label: 'Scor %',
+          data: stats.by_eco_family.map((r) => r.score_pct),
+          backgroundColor: stats.by_eco_family.map((r) => {
+            const s = r.score_pct;
+            if (s >= 55) return '#81b64c';
+            if (s <= 48) return '#fa412d';
+            return '#f7c631';
+          }),
+          borderRadius: 6,
+        }],
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } },
+    });
+
+    document.getElementById('footer').textContent = `Sursă: ${stats.meta.source_pgn}`;
+  </script>
+</body>
+</html>
